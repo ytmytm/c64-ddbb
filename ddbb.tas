@@ -1,0 +1,1417 @@
+
+;DualDriveBurstBackup by YTM/Alliance
+;27.09.1997, 6.3.1998
+
+;menusy
+;inne bajery (z RamCartBurstBackup)
+
+;Mozliwe przesylanie bezposrednie -
+;inny kod dla stacji, komputer tylko
+;do synchronizacji?
+
+
+buff     = $1200
+
+tl       = $22
+th       = $23
+
+mb       = $24
+sb       = $25
+
+lb       = $27
+hb       = $28
+
+tr       = $29
+
+src      = $fc
+tar      = $fd
+lb2      = $fe
+hb2      = $ff
+
+pr       .macro
+         lda #<\1
+         ldy #>\1
+         jsr $ab1e
+         .endm
+key      .macro
+         jsr $ffe4
+         beq *-3
+         .endm
+
+         *= $0801
+
+         lda #$17
+         sta $d018
+         lda #0
+         sta $d020
+         sta $d021
+         lda #$0f
+         sta $0286
+         jsr $e544
+
+         jsr setup
+
+start    lda #<nmi
+         sta $0318
+         lda #>nmi
+         sta $0319
+
+         #pr initext
+
+         ldx #0
+stlp     lda #"1"
+         sta $0400+12,x
+         lda #"2"
+         sta $040a+12,x
+         inx
+         cpx #10
+         bne stlp
+         lda #"3"
+stlp2    sta $040a+12,x
+         inx
+         cpx #16
+         bne stlp2
+
+         ldx #0
+         ldy #"0"
+stlp3    tya
+         sta $0402+40,x
+         sta $0402+50,x
+         sta $0402+60,x
+         iny
+         inx
+         cpx #10
+         bne stlp3
+         ldy #"0"
+stlp4    tya
+         sta $0402+60,x
+         iny
+         inx
+         cpx #16
+         bne stlp4
+
+         ldx #0
+         ldy #0
+cll      txa
+         ora #$30
+         sta sectext+1
+         tya
+         ora #$30
+         sta sectext+2
+         stx memx
+         sty memy
+         #pr sectext
+         ldy memy
+         ldx memx
+         iny
+         cpy #10
+         bne cll
+         ldy #0
+         inx
+         cpx #2
+         bne cll
+         ldy #0
+         txa
+         ora #$30
+         sta sectext+1
+         tya
+         ora #$30
+         sta sectext+2
+         #pr sectext
+         lda #"v"
+         sta $0400+(21*40)+20+2
+         lda #"e"
+         sta $0400+(21*40)+21+2
+         lda #"r"
+         sta $0400+(21*40)+22+2
+         lda #"."
+         sta $0400+(21*40)+23+2
+         lda #" "
+         sta $0400+(21*40)+24+2
+         sta $0400+(21*40)+27+2
+         lda #"o"
+         sta $0400+(21*40)+25+2
+         lda #"n"
+         sta $0400+(21*40)+26+2
+         lda #$2c
+         sta byte
+         #pr opcje
+main     #key
+         cmp #135
+         bne niever
+         jsr chngver
+         jmp main
+niever   cmp #133
+         bne niecopy
+         jsr copyfull
+         jmp main
+niecopy  cmp #134
+         bne niescan
+         jsr fastscan
+         jmp main
+niescan  cmp #136
+         bne niedir
+         jmp start
+niedir   jmp main
+
+nmi      rti
+
+memx     .byte 0
+memy     .byte 0
+;---------------------------------------
+sourceon jsr textoff
+         #pr source
+testout  lda #$0b
+         sta $d020
+         clc
+         #key
+         ldx #0
+         stx $d020
+         cmp #3
+         rts
+
+targeton jsr textoff
+         #pr target
+         jmp testout
+
+sortask  jsr textoff
+         #pr sort
+         jmp testout
+
+textoff  lda #" "
+         ldx #0
+clrlp    sta $0400+(24*40),x
+         inx
+         cpx #40
+         bne clrlp
+         clc
+         ldy #0
+         ldx #24
+         jmp $fff0
+
+;---------------------------------------
+fastscan lda #$24
+         sta here1
+         sta here2
+         jsr sortask
+         beq fscend
+         cmp #"s"
+         beq fssrc
+         lda tar
+         bne fsscon
+fssrc    lda src
+fsscon   ldx #1
+         ldy #35
+         jsr readtracks
+fscend   lda #$91
+         sta here1
+         sta here2
+         jsr textoff
+         rts
+;---------------------------------------
+chngver  lda byte
+         eor #$60
+         sta byte
+         cmp #$2c
+         beq veron
+         lda #"f"
+         sta $0400+(21*40)+26+2
+         sta $0400+(21*40)+27+2
+         rts
+veron    lda #"n"
+         sta $0400+(21*40)+26+2
+         lda #" "
+         sta $0400+(21*40)+27+2
+         rts
+;---------------------------------------
+copyfull
+         lda src
+         ldx #1
+         ldy #8
+         jsr readtracks
+         lda tar
+         ldx #1
+         ldy #8
+         jsr writetracks
+         lda src
+         ldx #9
+         ldy #16
+         jsr read2
+         lda tar
+         ldx #9
+         ldy #16
+         jsr write2
+         lda src
+         ldx #17
+         ldy #25
+         jsr read2
+         lda tar
+         ldx #17
+         ldy #25
+         jsr write2
+         lda src
+         ldx #26
+         ldy #35
+         jsr read2
+         lda tar
+         ldx #26
+         ldy #35
+         jsr write2
+         rts
+;---------------------------------------
+read2    sta $ba
+         stx tr
+         stx trstart
+         sty trend
+         jmp read2tr
+
+write2   sta $ba
+         stx tr
+         stx trstart
+         sty trend
+         jmp write2tr
+
+;---------------------------------------
+readtracks
+         sta $ba
+         stx trstart
+         stx tr
+         sty trend
+
+         ldx #<drcd1
+         ldy #>drcd1
+         lda #2
+         jsr fastmw
+
+read2tr  lda $dd0d
+         ldx #<drdexe
+         ldy #>drdexe
+         jsr drexec
+
+         jsr init
+
+         lda #<buff
+         sta mb
+         lda #>buff
+         sta sb
+
+         lda $dd0d
+         beq *-3
+         lda $dd01
+         cmp #$02
+         bcs fin
+
+mainread lda $dd0d
+         beq *-3
+         ldx $dd01
+         bne notend
+fin      jmp done
+
+notend   lda tr
+         clc
+         adc #$52
+         sta lb
+         lda #$04
+         sta hb
+         inc tr
+
+rdlp0    lda $dd0d
+         beq *-3
+         lda $dd01
+         bne fault
+
+         ldy #$00
+rdlp1    lda $dd0d
+         beq *-3
+         lda $dd01
+here1    sta (mb),y
+         iny
+         bne rdlp1
+
+         inc sb
+
+rdlp2    lda $dd0d
+         beq *-3
+         lda $dd01
+here2    sta (mb),y
+         iny
+         cpy #$43
+         bne rdlp2
+
+         lda $dd0d
+         beq *-3
+
+         lda $dd01
+
+fault    php
+         lda #$3f
+         plp
+         bne err
+         lda #$2a
+err      ldy #$00
+         sta (lb),y
+         lda lb
+         clc
+         adc #$28
+         sta lb
+         bcc rdlp4
+         inc hb
+rdlp4    lda mb
+         clc
+         adc #$43
+         sta mb
+         lda sb
+         adc #$00
+         cmp #$ff
+         bcc rdlp5
+
+         lda #$80       ;^
+         sta mb         ;^
+
+         lda #$12
+         bne rdnext
+rdlp5    cmp #$e0
+         bcs rdnext
+         cmp #$cf
+         bcc rdnext
+         lda #$00
+         sta mb
+         lda #$e0
+rdnext   sta sb
+         dex
+         bne rdlp0
+         jmp mainread
+;---------------------------------------
+writetracks
+
+         sta $ba
+         stx trstart
+         stx tr
+         sty trend
+
+         lda byte
+         sta drcd3+wrverif-$0400
+
+         ldx #<drcd3
+         ldy #>drcd3
+         lda #3
+         jsr fastmw
+
+write2tr lda $dd0d
+         ldx #<wrexe
+         ldy #>wrexe
+         jsr drexec
+
+         jsr init
+
+         lda #<buff
+         sta mb
+         lda #>buff
+         sta sb
+
+         lda $dd0d
+         beq *-3
+         lda $dd01
+
+mainwrite
+         lda $dd0d
+         beq *-3
+         ldx $dd01
+         bne notend2
+         jmp done
+
+notend2  lda #$ff
+         sta $dd03
+         lda tr
+         clc
+         adc #$52
+         sta lb
+         lda #$04
+         sta hb
+         inc tr
+wrlp0    ldy #$00
+         lda (mb),y
+         sta $dd01
+         iny
+wrlp1    lda $dd0d
+         beq *-3
+         lda (mb),y
+         sta $dd01
+         iny
+         bne wrlp1
+         inc sb
+wrlp2    lda $dd0d
+         beq *-3
+         lda (mb),y
+         sta $dd01
+         iny
+         cpy #$43
+         bne wrlp2
+         lda mb
+         clc
+         adc #$43
+         sta mb
+         lda sb
+         adc #$00
+         cmp #$ff
+         bcc wrlp3
+
+         lda #$80     ;^
+         sta mb       ;^
+
+         lda #$12
+         bne wrlp4
+wrlp3    cmp #$e0
+         bcs wrlp4
+         cmp #$cf
+         bcc wrlp4
+         lda #$00
+         sta mb
+         lda #$e0
+wrlp4    sta sb
+
+         lda $dd0d
+         beq *-3
+         dex
+         bne wrlp0
+
+         lda #$00
+         sta $dd03
+byte     bit mainwrite
+         lda $dd0d
+         beq *-3
+         ldx $dd01
+wrlp5    lda $dd0d
+         beq *-3
+         lda $dd01
+         php
+         lda #$3f
+         plp
+         bne wrlp6
+         lda #$2a
+wrlp6    ldy #$00
+         sta (lb),y
+         lda lb
+         clc
+         adc #$28
+         sta lb
+         bcc wrlp7
+         inc hb
+wrlp7    dex
+         bne wrlp5
+         jmp mainwrite
+;---------------------------------------
+init     sei
+         lda #$35
+         sta $01
+inlp     lda $d012
+         bne inlp
+         sta $d015
+         lda #$0b
+         sta $d011
+         rts
+
+done     lda #$1b
+         sta $d011
+         lda #$00
+         sta $dd03
+         lda #$37
+         sta $01
+         cli
+         rts
+
+;---------------------------------------
+fastmw   sta x0+1
+         sta drhow2+1
+         lda #$50
+         sta mb
+         lda #<drvcd
+         sta tl
+         lda #$01
+         sta sb
+         lda #$00
+         sta $d015
+         lda #>drvcd
+         sta th
+         stx x3+1
+         sty x3+2
+         jsr mew
+         bcc *+7
+drerror  cli
+         sec
+         lda #$80
+         rts
+         lda #$23
+         sta $dd00
+         bit $dd00
+         bvs *-3
+x0       lda #$02
+         sta $02
+x1       bit $dd00
+         bvc *-3
+         ldy #$00
+x3       lda $1000,y
+         pha
+         lsr a
+         lsr a
+         lsr a
+         lsr a
+         tax
+         sec
+x4       lda $d012
+         sbc #$32
+         bcc x5
+         and #$07
+         beq x4
+x5       lda #$03
+         sta $dd00
+         lda tabkon,x
+         sta $dd00
+         lsr a
+         lsr a
+         and #$f7
+         sta $dd00
+         pla
+         and #$0f
+         tax
+         lda tabkon,x
+         sta $dd00
+         lsr a
+         lsr a
+         and #$f7
+         sta $dd00
+         lda #$23
+         nop
+         nop
+         iny
+         sta $dd00
+         bne x3
+         inc x3+2
+         dec $02
+         bne x1
+         lda #$20
+         cmp $d012
+         bne *-3
+         ldx #$1b
+         stx $d011
+         lda $dd00
+         and #%11111100
+         ora #%00000011
+         sta $dd00
+         clc
+         rts
+;---------------------------------------
+tabkon   .byte $07,$87,$27,$a7,$47,$c7
+         .byte $67,$e7
+         .byte $17,$97,$37,$b7,$57,$d7
+         .byte $77,$f7
+;---------------------------------------
+drvcd    sei
+         jsr $019c
+         lda #$7a
+         sta $1802
+         jsr $f5e9
+drhow2   lda #$03
+         sta $06
+drv1     jsr $0173
+         inc $0198
+         dec $06
+         bne drv1
+         lda #$10
+         sta $1c07
+         nop
+         nop
+         nop
+         rts
+         ldy #$00
+         sty $1800
+drv2     lda $1800
+         bne *-3
+         php
+         lda $1800
+         asl a
+         plp
+         eor $1800
+         asl a
+         asl a
+         asl a
+         nop
+         nop
+         nop
+         eor $1800
+         asl a
+         nop
+         nop
+         nop
+         eor $1800
+         sta $0400,y
+         iny
+         bne drv2
+         lda #$08
+         sta $1800
+         rts
+;---------------------------------------
+mew      ldx #3
+loop     lda $ba
+         jsr $ffb1
+         lda #$00
+         sta $90
+         lda #$6f
+         jsr $ff93
+         bit $90
+         bpl dalej
+         sec
+         rts
+dalej    lda #$4d
+         jsr $ffa8
+         lda #$2d
+         jsr $ffa8
+         lda #$57
+         jsr $ffa8
+         lda mb
+         jsr $ffa8
+         lda sb
+         jsr $ffa8
+         lda #$20
+         jsr $ffa8
+         ldy #$00
+loop1    lda (tl),y
+         jsr $ffa8
+         iny
+         cpy #$20
+         bne loop1
+         jsr $ffae
+         lda mb
+         clc
+         adc #$20
+         sta mb
+         bcc *+4
+         inc sb
+         lda tl
+         clc
+         adc #$20
+         sta tl
+         bcc *+4
+         inc th
+         dex
+         bne loop
+         ldx #$50
+         ldy #$01
+         jsr draddy
+
+mex      lda $ba
+         jsr $ffb1
+         lda #$6f
+         jsr $ff93
+         ldx #$00
+         lda mex1,x  ;zm3
+         jsr $ffa8
+         inx
+mexplus  = *+1
+         cpx #$05
+         bne *-9
+         jsr $ffae
+         sei
+         clc
+         rts
+
+draddy   stx trans
+         sty trans+1
+         rts
+
+drexec   jsr draddy
+         lda #7
+         sta mexplus
+         jsr mex
+         lda #5
+         sta mexplus
+         rts
+
+;---------------------------------------
+         *= $1200
+
+setup    #pr setxt
+         lda #8
+         sta src
+         lda #9
+         sta tar
+setuplp  #key
+         cmp #"+"
+         beq incsrc
+         cmp #"-"
+         beq decsrc
+         cmp #"["
+         beq inctar
+         cmp #"]"
+         beq dectar
+         cmp #13
+         beq endsetup
+         jmp setuplp
+
+endsetup lda src
+         jsr setwai
+         lda tar
+         jsr setwai
+         rts
+
+incsrc   inc src
+         lda src
+         cmp #12
+         bne incsrcon
+zersrc   lda #8
+         sta src
+incsrcon lda src
+         cmp tar
+         beq incsrc
+         jsr count
+         sta $0400+9+80
+         jmp setuplp
+
+decsrc   dec src
+         lda src
+         cmp #7
+         bne decsrcon
+         lda #11
+         sta src
+decsrcon lda src
+         cmp tar
+         beq decsrc
+         jsr count
+         sta $0400+9+80
+         jmp setuplp
+
+inctar   inc tar
+         lda tar
+         cmp #12
+         bne inctaron
+         lda #8
+         sta tar
+inctaron lda tar
+         cmp src
+         beq inctar
+         jsr count
+         sta $0400+9+160
+         jmp setuplp
+
+dectar   dec tar
+         lda tar
+         cmp #7
+         bne dectaron
+         lda #11
+         sta tar
+dectaron lda tar
+         cmp src
+         beq dectar
+         jsr count
+         sta $0400+9+160
+         jmp setuplp
+
+
+count    ora #$30
+         cmp #$3a
+         bcc cnend
+         clc
+         adc #7
+cnend    rts
+
+setwai   jsr $ffb1
+         lda #$6f
+         jsr $ff93
+         ldx #0
+swlp0    lda order,x
+         jsr $ffa8
+         inx
+         cpx #7
+         bne swlp0
+         jmp $ffae
+
+order    .text "m-w"
+         .word $1803
+         .byte 1,0
+
+setxt    .text "Dual Drive Burst "
+         .text "Backup by YTM/Alliance"
+         .byte 13,13
+         .text "Source#: 8"
+         .byte 13,13
+         .text "Target#: 9"
+         .byte 13,13
+         .text "Use (SHIFTed) +/- for d"
+         .text "rives and"
+         .byte 13
+         .text "RETURN to accept."
+         .byte 13,13,13
+         .byte 13
+         .text "It's the fastest copier"
+         .text " ever!"
+         .byte 13
+         .text "Connect all wires "
+         .text "of 2nd burst cable"
+         .byte 13
+         .text "each-to-each to 1st cab"
+         .text "le: 1-1,...,10-10"
+         .byte 13
+         .null "That's all!"
+         .byte 0
+
+;---------------------------------------
+         *= $0340
+
+mex1     .text "m-e"
+trans    .byte $50,$01
+trstart  .byte 1
+trend    .byte 1
+
+initext  .byte 147
+         .text "DDBBac/YTM"
+         .byte 13,13,0
+
+sectext  .text " 00.................."
+         .text "................."
+         .byte 13,0
+
+opcje    .text " F1 - Copy F3 - Scan "
+         .text "F5 - Ver. F7 - Cls"
+         .byte 0
+
+source   .text "     Insert source disk"
+         .byte 0
+target   .text "     Insert target disk"
+         .byte 0
+sort     .text "     (S)ource or (T)arg"
+         .null "et"
+
+;---------------------------------------
+         *= $0d80
+drcd1
+         *= $0400
+         .offs drcd1-$0400
+
+startrd  lda #$ee
+         sta $1c0c
+         lda $08
+         sta $18
+         ldx #$04
+drd1     cmp $fed6,x
+         dex
+         bcs drd1
+         lda $fed1,x
+         sta $43
+         txa
+         asl a
+         asl a
+         asl a
+         asl a
+         asl a
+         sta $44
+         lda $1c00
+         and #$9f
+         ora $44
+         sta $1c00
+         lda $43
+         sta $1801
+         ldx #$00
+         stx $19
+drd2     lda $16
+         eor $17
+         eor $18
+         eor $19
+         sta $1a
+         stx $0a
+         jsr $f934
+         ldx $0a
+         ldy #$00
+drd3     lda $24,y
+         sta $0700,x
+         inx
+         iny
+         cpy #$08
+         bne drd3
+         inc $19
+         lda $19
+         cmp $43
+         bne drd2
+         lda #$00
+         sta $0a
+jump1    lda #$5a
+         sta $0b
+drd4     dec $0b
+         bne drd6
+
+drd5     jmp drd11
+
+drd6     ldy #$08
+         ldx $0a
+         lda #$d0
+         sta $1805
+drd7     lda $1805
+         bpl drd5
+         lda $1c00
+         bmi drd7
+         clv
+         lda $1c01
+drd8     bvc *
+         clv
+         lda $1c01
+         cmp $0700,x
+         bne drd4
+         inx
+         dey
+         bne drd8
+         stx $0a
+         lda #$00
+         sta $1801
+         sta $56
+         sta $57
+         sta $58
+         sta $59
+         sta $5a
+         ldy #$40
+         lda #$d0
+         sta $1805
+drd9     lda $1805
+         bpl drd5
+         lda $1c00
+         bmi drd9
+         lda $1c01
+         clv
+drd10    bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $56
+         sta $56
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $57
+         sta $57
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $58
+         sta $58
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $59
+         sta $59
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $5a
+         sta $5a
+         dey
+         bne drd10
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $56
+         sta $56
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $57
+         sta $57
+         bvc *
+         clv
+         lda $1c01
+         sta $1801
+         eor $58
+         sta $58
+         lda $5a
+         lsr a
+         lsr a
+         eor $56
+         lsr a
+         lsr a
+         eor $57
+         lsr a
+         lsr a
+         eor $58
+         and #$02
+         bne drd11
+         lda $58
+         lsr a
+         lsr a
+         eor $59
+         lsr a
+         lsr a
+         eor $5a
+         lsr a
+         lsr a
+         eor $56
+         and #$01
+         bne drd12
+drd11    lda #$ff
+         .byte $2c
+drd12    lda #$00
+         sta $1801
+         dec $19
+         beq drd13
+         jmp jump1
+
+drd13    lda $18
+rendtrack = *+1
+         cmp #$02
+         bne drd14
+         jmp $f505
+drd14    inc $22
+         inc $08
+         ldy #$02
+drd15    jsr $fa65
+         lda #$8c
+         sta $1805
+drd16    lda $1805
+         bmi drd16
+         dey
+         bne drd15
+         jmp startrd
+
+drdexe   lda #$ff
+         sta $1803
+         lda #$0b
+         sta $180c
+         lda #$0c
+         sta $1c07
+         lda $0205
+         sta rstartrack
+         lda $0206
+         sta rendtrack
+         jsr $c118
+rstartrack = *+1
+         ldx #$01
+         lda #$b0
+         jsr jump2
+         sta $1801
+         bcs drd17
+         lda #$e0
+         jsr jump2
+         lda #$00
+drd17    sta $1801
+         lda #$ff
+         sta $1c
+         lda #$01
+         sta $180c
+         lda #$3a
+         sta $1c07
+         lda #$00
+         sta $1803
+         rts
+
+jump2    stx $08
+         sta $01
+drd18    lda $01
+         bmi drd18
+         cmp #$02
+         rts
+drcd2
+         .offs 0
+         *= drcd2-$0400+drcd1
+drcd3
+
+         *= $0400
+         .offs drcd3-$0400
+
+wrstart  lda $08
+         sta $18
+         ldx #$04
+dwr0     cmp $fed6,x
+         dex
+         bcs dwr0
+         lda $fed1,x
+         sta $43
+         sta $1801
+         txa
+         asl a
+         asl a
+         asl a
+         asl a
+         asl a
+         sta $44
+         lda $1c00
+         and #$9f
+         ora $44
+         sta $1c00
+         lda #$ce
+         sta $1c0c
+         lda #$ff
+         sta $1c03
+         ldx #$02
+         ldy #$00
+dwr1     lda #$ff
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr1
+         dex
+         bne dwr1
+         ldx #$00
+         stx $19
+dwr2     lda $16
+         eor $17
+         eor $18
+         eor $19
+         sta $1a
+         stx $0a
+         jsr $f934
+         ldx $0a
+         ldy #$00
+dwr3     lda $24,y
+         sta $0700,x
+         inx
+         iny
+         cpy #$08
+         bne dwr3
+         inc $19
+         lda $19
+         cmp $43
+         bne dwr2
+         lda #$00
+         sta $1803
+         sta $0a
+dwr4     ldy #$05
+dwr5     lda #$ff
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr5
+         ldy #$08
+         ldx $0a
+dwr6     lda $0700,x
+         bvc *
+         clv
+         sta $1c01
+         inx
+         dey
+         bne dwr6
+         stx $0a
+         ldy #$0b
+dwr7     lda #$55
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr7
+         ldy #$05
+dwr8     lda #$ff
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr8
+         ldy #$43
+dwr9     lda $1801
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr9
+dwr10    lda $1801
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr10
+         ldy #$0b
+dwr11    lda #$55
+         bvc *
+         clv
+         sta $1c01
+         dey
+         bne dwr11
+         dec $19
+         bne dwr4
+         jsr $fe00
+         lda #$ff
+         sta $1803
+wrverif  bit dwr20
+         lda $43
+         sta $1801
+         ldx #$00
+wrjump1  ldy #$08
+         lda #$d0
+         sta $1805
+dwr12    lda $1805
+         bmi dwr14
+dwr13    jmp dwr18
+
+dwr14    lda $1c00
+         bmi dwr12
+         clv
+         lda $1c01
+dwr15    bvc *
+         clv
+         lda $1c01
+         cmp $0700,x
+         bne dwr13
+         inx
+         dey
+         bne dwr15
+         stx $0a
+         lda #$00
+         sta $56
+         sta $57
+         sta $58
+         sta $59
+         sta $5a
+         ldy #$40
+         lda #$d0
+         sta $1805
+dwr16    lda $1805
+         bpl dwr13
+         lda $1c00
+         bmi dwr16
+         lda $1c01
+         clv
+dwr17    bvc *
+         clv
+         lda $1c01
+         eor $56
+         sta $56
+         bvc *
+         clv
+         lda $1c01
+         eor $57
+         sta $57
+         bvc *
+         clv
+         lda $1c01
+         eor $58
+         sta $58
+         bvc *
+         clv
+         lda $1c01
+         eor $59
+         sta $59
+         bvc *
+         clv
+         lda $1c01
+         eor $5a
+         sta $5a
+         dey
+         bne dwr17
+         bvc *
+         clv
+         lda $1c01
+         eor $56
+         sta $56
+         bvc *
+         clv
+         lda $1c01
+         eor $57
+         sta $57
+         bvc *
+         clv
+         lda $1c01
+         eor $58
+         sta $58
+         lda $5a
+         lsr a
+         lsr a
+         eor $56
+         lsr a
+         lsr a
+         eor $57
+         lsr a
+         lsr a
+         eor $58
+         and #$02
+         bne dwr18
+         lda $58
+         lsr a
+         lsr a
+         eor $59
+         lsr a
+         lsr a
+         eor $5a
+         lsr a
+         lsr a
+         eor $56
+         and #$01
+         bne dwr19
+dwr18    lda #$ff
+         .byte $2c
+dwr19    lda #$00
+         sta $1801
+         inc $19
+         lda $19
+         cmp $43
+         beq dwr20
+         ldx $0a
+         jmp wrjump1
+
+dwr20    lda $18
+wendtr   = *+1
+         cmp #$02
+         bne dwr21
+         jmp $f505
+dwr21    inc $22
+         inc $08
+         ldy #$02
+dwr22    jsr $fa65
+         lda #$94
+         sta $1805
+dwr23    lda $1805
+         bmi dwr23
+         dey
+         bne dwr22
+         lda #$ee
+         sta $1c0c
+         jmp wrstart
+
+wrexe    lda #$ff
+         sta $1803
+         lda #$0b
+         sta $180c
+         lda #$0c
+         sta $1c07
+         lda $0205
+         sta wstartr
+         lda $0206
+         sta wendtr
+         jsr $c118
+         lda #$00
+         sta $1801
+wstartr  = *+1
+         ldx #$01
+         dex
+         bne dwr24
+         lda #$c0
+         .byte $2c
+dwr24    lda #$b0
+         jsr wrjump2
+         inx
+         lda #$e0
+         jsr wrjump2
+         lda #$00
+         sta $1801
+         lda #$ff
+         sta $1c
+         lda #$01
+         sta $180c
+         lda #$3a
+         sta $1c07
+         lda #$00
+         sta $1803
+         rts
+
+wrjump2  stx $08
+         sta $01
+dwr25    lda $01
+         bmi dwr25
+         cmp #$02
+         rts
+
+         .offs 0
+drcd4
+         *= drcd4-$0400+drcd3
+
